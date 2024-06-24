@@ -1,0 +1,758 @@
+create database QL_BAN_GIAY_09
+go
+
+use QL_BAN_GIAY_09
+go
+
+CREATE TABLE LoaiSP (
+    MaLoai CHAR(10),
+    TenLoai NVARCHAR(50),
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_LoaiSP PRIMARY KEY (MaLoai)
+);
+GO
+
+CREATE TABLE NhaCC (
+    MaNCC CHAR(10),
+    TenNCC NVARCHAR(30),
+    DiaChi NVARCHAR(30),
+    Sdt VARCHAR(15),
+    Email VARCHAR(20),
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_NhaCC PRIMARY KEY (MaNCC)
+);
+GO
+CREATE TABLE SanPham (
+    MaSP CHAR(10),
+    TenSP NVARCHAR(50),
+    SoLuong INT,
+    GiaNhap FLOAT, -- Thêm giá nhập
+    GiaBan FLOAT,
+    Hinh VARCHAR(50),
+    MaLoai CHAR(10),
+	MaNCC CHAR(10),
+    Mota NVARCHAR(MAX),
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_SanPham PRIMARY KEY (MaSP),
+    CONSTRAINT fk_SanPham_LoaiSP FOREIGN KEY (MaLoai) REFERENCES LoaiSP (MaLoai),
+    CONSTRAINT fk_SanPham_MaNhaCC FOREIGN KEY (MaNCC) REFERENCES NhaCC (MaNCC)
+);
+GO
+
+
+CREATE TABLE Mau (
+    MaMau CHAR(10),
+    TenMau NVARCHAR(20),
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_Mau PRIMARY KEY (MaMau)
+);
+GO
+CREATE TABLE Size (
+    MaSize CHAR(10),
+    TenSize VARCHAR(20),
+    SoLuong INT,
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_Size PRIMARY KEY (MaSize)
+);
+GO
+-------------------------------------------------------------------------------------------------
+CREATE TABLE ChiTiet_SanPham (
+    MaSP CHAR(10),
+    MaMau CHAR(10),
+    MaSize CHAR(10),
+    SoLuong INT,
+    MaCTSP CHAR(10) UNIQUE,
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_ChiTiet_SanPham PRIMARY KEY (MaSP, MaMau, MaSize),
+    CONSTRAINT fk_CTSP_SP FOREIGN KEY (MaSP) REFERENCES SanPham (MaSP),
+    CONSTRAINT fk_CTSP_Mau FOREIGN KEY (MaMau) REFERENCES Mau (MaMau),
+    CONSTRAINT fk_CTSP_Size FOREIGN KEY (MaSize) REFERENCES Size(MaSize)
+);
+GO
+
+
+
+-- Xóa khóa chính hiện tại
+ALTER TABLE ChiTiet_SanPham
+DROP CONSTRAINT pk_ChiTiet_SanPham;
+
+-- Thêm khóa chính mới (nếu cần)
+ALTER TABLE ChiTiet_SanPham
+ADD CONSTRAINT pk_ChiTiet_SanPham1 PRIMARY KEY (MaCTSP);
+
+-- Thêm các dữ liệu để điều chỉnh cho bản chi tiết sản phẩm
+--Danh sách bảng
+select * from ChiTiet_SanPham
+GO
+
+
+
+----- Thêm từ đây************************************************************************
+-- thủ tục hiển thị danh sách khách hàng
+CREATE PROC DanhSachCTSP as
+select * from ChiTiet_SanPham where TrangThai =0;
+exec DanhSachCTSP
+
+-- Thủ tục tìm kiếm chi tiết sản phẩm
+create proc TimKiemCTSP (@GiaTriCanTim nvarchar(20)) as
+SELECT * FROM ChiTiet_SanPham WHERE (MaCTSP = @GiaTriCanTim) AND TrangThai = 0;
+exec TimKiemCTSP N'ctsp001'
+
+-- sinh mã chi tiết sản phẩm
+CREATE PROCEDURE sinhmaCTSP AS
+BEGIN
+	IF ((SELECT COUNT(*) FROM ChiTiet_SanPham) = 0)
+		SELECT 'CTSP0000' AS MaCTSP;
+	ELSE
+		SELECT TOP 1 MaCTSP FROM ChiTiet_SanPham ORDER BY MaCTSP DESC;
+END;
+GO
+
+
+--Thủ tục thêm CTSP
+CREATE PROC ThemCTSP(@MaSP CHAR(10), @MaMau NVARCHAR(30),@MaSize NVARCHAR(30),@SoLuong int,@MaCTSP VARCHAR(20) ) as
+insert into ChiTiet_SanPham values (@MaSP,@MaMau,@MaSize,@SoLuong,@MaCTSP,0);
+
+exec ThemCTSP 'SP005','M002', 's0002', '300','CTSP009'
+go
+
+select * from Mau
+select * from Size
+select * from SanPham
+select * from ChiTiet_SanPham
+
+exec ThemKH 'KH07','Đào Ngọc Ti', '152 Cà Mau', '0965321478','UU@gmail.com'
+go
+
+
+-- thủ tục sửa CTSP
+create proc SuaCTSP (@MaSP CHAR(10), @MaMau NVARCHAR(30),@MaSize NVARCHAR(30),@SoLuong VARCHAR(15),@MaCTSP VARCHAR(20), @TrangThai char(10) ) as
+update ChiTiet_SanPham set MaSP = @MaSP,MaMau = @MaMau, MaSize = @MaSize, SoLuong = @SoLuong, trangthai = @TrangThai where MaCTSP = @MaCTSP;
+go
+
+select * from ChiTiet_SanPham
+-- Thực hiện cập nhật
+EXEC SuaCTSP 'SP005', 'M004', 'S0002', 100, 'CTSP007', '0';
+go
+
+
+---- thủ tục xóa CTSP
+create proc XoaCTSP(@maCTSP varchar(10)) as
+update ChiTiet_SanPham set TrangThai = 1 where MaCTSP = @maCTSP;
+exec XoaCTSP 'CTSP0003'
+
+
+
+-- Xoa ChiTiet_SanPham khỏi CSDL
+select * from ChiTiet_SanPham
+GO
+CREATE PROCEDURE XoaMatCTSP
+    @MaCTSP CHAR(10)
+AS
+BEGIN
+    DELETE FROM ChiTiet_SanPham
+    WHERE MaCTSP = @MaCTSP;
+END;
+GO
+EXEC XoaMatCTSP @MaCTSP = 'CTSP002';
+GO
+
+
+
+select MaSP from SanPham where TrangThai = 0
+select MaMau from Mau where TrangThai = 0
+select MaSize from Size where TrangThai = 0
+
+
+
+
+
+INSERT INTO ChiTiet_SanPham (MaSP, MaMau, MaSize, SoLuong, MaCTSP, TrangThai)
+VALUES	
+		('SP002', 'M001', 's0003', 20, 'CTSP004', 1),
+		('SP003', 'M002', 's0003', 30, 'CTSP005', 1),
+		('SP004', 'M003', 's0007', 25, 'CTSP006', 0),
+		('SP005', 'M004', 's0001', 35, 'CTSP007', 1),
+		('SP006', 'M004', 's0002', 40, 'CTSP008', 0),
+		('SP001', 'M003', 's0002', 10, 'CTSP003', 0),
+		('SP001', 'M002', 's0002', 15, 'CTSP002', 0),
+		('SP001', 'M001', 's0001', 5, 'CTSP001', 0);
+
+select * from SanPham
+GO
+INSERT INTO SanPham (MaSP, TenSP, SoLuong, GiaNhap, GiaBan, Hinh, MaLoai, MaNCC, Mota, TrangThai)
+VALUES	('SP002', N'Sản phẩm 2', 20, 200.75, 300.00, 'hinh_sp002.jpg', 'L002', 'NCC002', N'Mô tả sản phẩm 2', N'Hoạt động'),
+		('SP003', N'Sản phẩm 3', 30, 150.00, 250.00, 'hinh_sp003.jpg', 'L003', 'NCC003', N'Mô tả sản phẩm 3', N'Hoạt động'),
+		('SP004', N'Sản phẩm 4', 40, 120.50, 220.00, 'hinh_sp004.jpg', 'L004', 'NCC004', N'Mô tả sản phẩm 4', N'Không hoạt động'),
+		('SP005', N'Sản phẩm 5', 50, 180.75, 280.00, 'hinh_sp005.jpg', 'L005', 'NCC005', N'Mô tả sản phẩm 5', N'Hoạt động'),
+		('SP006', N'Sản phẩm 6', 60, 175.00, 275.00, 'hinh_sp006.jpg', 'L006', 'NCC006', N'Mô tả sản phẩm 6', N'Không hoạt động'),
+		('SP001', N'Sản phẩm 1', 10, 100.50, 150.00, 'hinh_sp001.jpg', 'L001', 'NCC001', N'Mô tả sản phẩm 1', N'Hoạt động');
+GO
+select * from LoaiSP
+INSERT INTO LoaiSP (MaLoai, TenLoai, TrangThai)
+VALUES	('L002', N'Loại 2', 1),
+		('L003', N'Loại 3', 1),
+		('L004', N'Loại 4', 0),
+		('L005', N'Loại 5', 1),
+		('L006', N'Loại 6', 0),
+		('L001', N'Loại 1', 0);
+GO
+select * from NhaCC
+INSERT INTO NhaCC (MaNCC, TenNCC, DiaChi, Sdt, Email, TrangThai)
+VALUES ('NCC002', N'Nhà cung cấp 2', N'Địa chỉ 2', '0987654321', 'email2@example.com', 1),
+		('NCC003', N'Nhà cung cấp 3', N'Địa chỉ 3', '0123456790', 'email3@example.com', 1),
+		('NCC004', N'Nhà cung cấp 4', N'Địa chỉ 4', '0987654312', 'email4@example.com', 0),
+		('NCC005', N'Nhà cung cấp 5', N'Địa chỉ 5', '0123456781', 'email5@example.com', 1),
+		('NCC006', N'Nhà cung cấp 6', N'Địa chỉ 6', '0987654323', 'email6@example.com', 0),
+		('NCC001', N'Nhà cung cấp 1', N'Địa chỉ 1', '0123456789', 'email1@example.com', 0);
+GO
+select * from Mau
+insert INTO Mau (MaMau, TenMau, TrangThai)
+VALUES ('M001', N'Màu đỏ', 0),
+		('M002', N'Màu vàng', 0),
+		('M003', N'Màu cam',0 ),
+		('M004', N'Màu trắng', 0)
+GO		
+select * from Size
+GO
+
+------------------------------------------------------------------------------------------------- tới đây
+
+CREATE TABLE KhachHang (
+    MaKH CHAR(10),
+    TenKH NVARCHAR(30),
+    DiaChi NVARCHAR(30),
+    Sdt VARCHAR(15),
+    Email VARCHAR(20),
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_KhachHang PRIMARY KEY (MaKH)
+);
+GO
+CREATE TABLE NhanVien (
+    MaNV CHAR(10),
+    TenNV NVARCHAR(30),
+    DiaChi NVARCHAR(30),
+    GioiTinh NVARCHAR(15),
+    Sdt VARCHAR(15),
+    Email VARCHAR(20),
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_NhanVien PRIMARY KEY (MaNV)
+);
+GO
+
+create table TaiKhoan(
+	TenDN NVARCHAR(30),
+	MatKhau CHAR(10),
+	TrangThai NVARCHAR(20),
+	CONSTRAINT pk_TaiKhoan PRIMARY KEY (TenDN)
+);
+GO
+
+ALTER TABLE TaiKhoan
+ADD CONSTRAINT UQ_MatKhau UNIQUE (MatKhau);
+GO
+
+--INSERT INTO TaiKhoan (TenDN, MatKhau,TrangThai)
+--VALUES ('user1', 'password1',0),
+--       ('user2', 'password2',0),
+--       ('user3', 'password3',0);
+--	   GO -- 
+	
+DELETE FROM TaiKhoan; -- xóa toàn bộ dữ liệu trong table
+GO
+
+select * from TaiKhoan
+GO
+
+CREATE TABLE HoaDon (
+    MaHD CHAR(10),
+    MaKH CHAR(10),
+    MaNV CHAR(10),
+    NgayLap DATE,
+    TongTien FLOAT,
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_HoaDon PRIMARY KEY (MaHD),
+    CONSTRAINT fk_HoaDon_KhachHang FOREIGN KEY (MaKH) REFERENCES KhachHang (MaKH),
+    CONSTRAINT fk_HoaDon_NhanVien FOREIGN KEY (MaNV) REFERENCES NhanVien (MaNV)
+);
+GO
+CREATE TABLE ChiTiet_HoaDon (
+    MaCTSP CHAR(10) UNIQUE,
+    MaHD CHAR(10),
+    SoLuong INT,
+    ThanhTien FLOAT,
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_CTHD PRIMARY KEY (MaHD, MaCTSP),
+    CONSTRAINT fk_CTHD_CTSP FOREIGN KEY (MaCTSP) REFERENCES ChiTiet_SanPham (MaCTSP),
+    CONSTRAINT fk_CTHD_HD FOREIGN KEY (MaHD) REFERENCES HoaDon (MaHD)
+);
+GO
+
+CREATE TABLE PhieuNhap (
+    MaPN CHAR(10),
+    MaNCC CHAR(10),
+    MaNV CHAR(10),
+    NgayLap DATE,
+    TongTien FLOAT,
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_PhieuNhap PRIMARY KEY (MaPN),
+    CONSTRAINT fk_PhieuNhap_NhaCC FOREIGN KEY (MaNCC) REFERENCES NhaCC (MaNCC),
+    CONSTRAINT fk_PhieuNhap_NhanVien FOREIGN KEY (MaNV) REFERENCES NhanVien (MaNV)
+);
+GO
+CREATE TABLE ChiTiet_PhieuNhap (
+    MaCTSP CHAR(10) UNIQUE,
+    MaPN CHAR(10),
+    SoLuong INT,
+    GiaNhap FLOAT, -- Thêm giá nhập
+    ThanhTien FLOAT,
+    TrangThai NVARCHAR(20), -- Thuộc tính trạng thái
+    CONSTRAINT pk_CTPN PRIMARY KEY (MaPN, MaCTSP),
+    CONSTRAINT fk_CTPN_CTSP FOREIGN KEY (MaCTSP) REFERENCES ChiTiet_SanPham (MaCTSP),
+    CONSTRAINT fk_CTPN_PN FOREIGN KEY (MaPN) REFERENCES PhieuNhap (MaPN)
+);
+GO
+
+
+-- thủ tục hiển thị danh sách khách hàng
+CREATE PROC danhsachKH01 as
+select * from KhachHang where TrangThai =0;
+exec danhsachKH01
+
+-- thủ tục tìm kiếm khách hàng
+create proc TimKiemKH (@GiaTriCanTim nvarchar(20)) as
+SELECT * FROM KhachHang WHERE (MaKH = @GiaTriCanTim OR TenKH LIKE N'%' + @GiaTriCanTim + '%') AND TrangThai = 0;
+exec TimKiemKH N'kh01'
+
+CREATE PROCEDURE sinhmaKhachHang AS
+BEGIN
+	IF ((SELECT COUNT(*) FROM KhachHang) = 0)
+		SELECT 'KH0000' AS TenDN;
+	ELSE
+		SELECT TOP 1 MaKH FROM KhachHang ORDER BY MaKH DESC;
+END;
+GO
+
+--Thủ tục thêm khách hàng
+CREATE PROC ThemKH(@MaKH CHAR(10), @TenKH NVARCHAR(30),@DiaChi NVARCHAR(30),@Sdt VARCHAR(15),@Email VARCHAR(20) ) as
+insert into KhachHang values (@MaKH,@TenKH,@DiaChi,@Sdt,@Email,0);
+exec ThemKH 'KH07','Đào Ngọc Ti', '152 Cà Mau', '0965321478','UU@gmail.com'
+go
+-- thủ tục sửa khachhang
+create proc SuaKhachHang(@MaKH CHAR(10), @TenKH NVARCHAR(30),@DiaChi NVARCHAR(30),@Sdt VARCHAR(15),@Email VARCHAR(20), @TrangThai char(10) ) as
+update KhachHang set TenKH = @TenKH,DiaChi = @DiaChi, Sdt = @Sdt, Email = @Email, trangthai = @TrangThai where MaKH = @MaKH;
+go
+
+select * from khachHang
+
+
+exec SuaKhachHang 'kh0002','Nguyễn Văn Phát','123 Tây Ninh','0254136589','HH@gmail.com','0'
+go
+
+
+-- thủ tục xóa khách hàng
+create proc XoaKhachHang(@makh varchar(10)) as
+update KhachHang set TrangThai = 1 where MaKH = @MaKH;
+
+exec XoaKhachHang 'kh02'
+
+select * from KhachHang
+
+INSERT INTO KhachHang VALUES ('KH05','Nguyen Hong Anh','254 Bến Tre','0365214789','pp@gmail.com',0)
+
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+--Thủ tục hiện thị danh sách nhân viên
+CREATE PROC danhsachnhanvien1 as
+select * from NhanVien where TrangThai =0;
+exec danhsachnhanvien1
+
+-- thủ tục tìm kiếm nhân viên
+create proc TimKiemNV (@GiaTriCanTim nvarchar(20)) as
+SELECT * FROM NhanVien WHERE (MaNV = @GiaTriCanTim OR TenNV LIKE N'%' + @GiaTriCanTim + '%') AND TrangThai = 0;
+exec TimKiemNV N'nv01'
+
+
+-- sinh mã nhân viên
+CREATE PROCEDURE sinhmaNhanVien AS
+BEGIN
+	IF ((SELECT COUNT(*) FROM NhanVien) = 0)
+		SELECT 'NV0000' AS TenNV;
+	ELSE
+		SELECT TOP 1 MaNV FROM NhanVien ORDER BY MaNV DESC;
+END;
+GO
+
+-- thủ tục thêm nhân viên -> hoàn thành
+create proc themnhanvien(@MaNV CHAR(10), @TenNV NVARCHAR(30),@DiaChi NVARCHAR(30),@GioiTinh NVARCHAR(15),@Sdt VARCHAR(15),@Email VARCHAR(20)) as
+insert into NhanVien values (@MaNV, @TenNV,@DiaChi,@GioiTinh,@Sdt,@Email,0);
+exec themnhanvien 'NV03',N'Cam','369 long an',N'nữ','0254136987','Wk@gmail.com'
+go
+
+-- Thủ tục kiểm tra mã nhân viên
+CREATE PROCEDURE KiemTraTonTaiMaNV(@MaNV CHAR(10), @Exists BIT OUTPUT) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM NhanVien WHERE MaNV = @MaNV)
+        SET @Exists = 1;
+    ELSE
+        SET @Exists = 0;
+END	
+go
+
+select * from NhanVien
+go
+-- thủ tục sửa nhân viên -> hoàn thành
+create proc SuaNhanVien(@MaNV CHAR(10), @TenNV NVARCHAR(30),@DiaChi NVARCHAR(30),@GioiTinh NVARCHAR(15),@Sdt VARCHAR(15),@Email VARCHAR(20),@trangthai char(10)) as
+update NhanVien set TenNV = @TenNV,DiaChi = @DiaChi,GioiTinh =@GioiTinh,Sdt = @Sdt, Email = @Email, TrangThai = @trangthai where MaNV = @MaNV;
+go
+exec SuaNhanVien 'nv0003','Nguyễn Minh Hào','258 Cần Thơ','Nam','0236514789','WW@gmail.com','0'
+go
+-- thủ tục xóa nhân viên -> hoàn thành
+create proc XoaNhanVien(@maNV varchar(10)) as
+update NhanVien set TrangThai = 1 where MaNV = @maNV;
+exec XoaNhanVien 'nv03'
+
+select * from NhanVien
+--delete from NhanVien where MaNV = 'nv0022';
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+--Thủ tục hiển thị danh sách tài khoản
+CREATE PROC dsTaiKhoan as
+select * from TaiKhoan where TrangThai =0;
+exec dsTaiKhoan
+
+-- thủ tục tìm kiếm tài khoản
+create proc TimtaiKhoan (@GiaTriCanTim nvarchar(20)) as
+SELECT * FROM TaiKhoan WHERE TenDN = @GiaTriCanTim AND TrangThai = 0;
+exec TimtaiKhoan N'user1'
+
+
+--Thủ tục thêm tài khoản
+create proc Themtaikhoan(@TenDN NVARCHAR(30),@MatKhau CHAR(10) ) as
+insert into TaiKhoan values (@TenDN, @MatKhau,0);
+exec Themtaikhoan 'user4',N'mk01'
+go
+
+--Thủ tục sủa tài khoản
+create proc SuaTaiKhoan(@TenDN NVARCHAR(30),@MatKhau CHAR(10)) as
+update TaiKhoan set MatKhau = @MatKhau where TenDN = @TenDN;
+exec SuaTaiKhoan 'user1','mkuser1'
+
+
+--Thủ tục xóa tài khoản
+-- thủ tục xóa nhân viên -> hoàn thành
+create proc XoaTaiKhoan(@TenDN varchar(10)) as
+update TaiKhoan set TrangThai = 1 where TenDN = @TenDN;
+exec XoaTaiKhoan 'user4'
+GO
+
+CREATE PROCEDURE kiemTraMatKhau
+    @matKhau NVARCHAR(255)
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM TaiKhoan WHERE MatKhau = @matKhau)
+    BEGIN
+        SELECT 1 AS Result;
+    END
+    ELSE
+    BEGIN
+        SELECT 0 AS Result;
+    END
+END
+GO
+
+
+-------------------
+select * from TaiKhoan
+---------------------------------------------------------------------------------------------
+GO
+--sinh mã tài khoản
+CREATE PROCEDURE sinhmatk AS
+BEGIN
+	IF ((SELECT COUNT(*) FROM TaiKhoan) = 0)
+		SELECT 'TK0000' AS TenDN;
+	ELSE
+		SELECT TOP 1 TenDN FROM TaiKhoan ORDER BY TenDN DESC;
+END;
+GO
+
+--------------------------------------------------------------------
+select * from Size 
+
+-- thủ tục tìm kiếm tài khoản
+create proc TimSize ( @tenSize nvarchar(20)) as
+SELECT * FROM Size WHERE (TenSize = @tenSize ) AND TrangThai = 0;
+
+exec TimSize 'm'
+
+
+
+--sinh mã Size giay
+alter PROCEDURE sinhmaSizeGiay AS
+BEGIN
+	IF ((SELECT COUNT(*) FROM Size) = 0)
+		SELECT 'S0000' AS MaSize;
+	ELSE
+		SELECT TOP 1 MaSize FROM Size ORDER BY MaSize DESC;
+END;
+GO
+
+
+---Kiem tra teen Size trung
+CREATE PROCEDURE kiemTraTenSizeTrung
+    @tenSize NVARCHAR(255)
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM Size WHERE TenSize = @tenSize)
+    BEGIN
+        SELECT 1 AS Result;
+    END
+    ELSE
+    BEGIN
+        SELECT 0 AS Result;
+    END
+END
+GO
+
+
+
+--Thủ tục thêm khách hàng
+CREATE PROC ThemSize(@MaSize CHAR(10), @TenSize NVARCHAR(30),@soluong int ) as
+insert into Size values (@MaSize,@TenSize,@soluong,0);
+exec ThemSize's007','xxl',300;
+
+
+
+
+-- thủ tục sửa khachhang
+create proc SuaSize(@MaSize CHAR(10), @TenSize NVARCHAR(30),@soluong int ) as
+update Size set TenSize = @TenSize, SoLuong = @soluong where MaSize = @MaSize;
+exec SuaSize's007','xxxxl',300;
+
+-- thủ tục xóa khách hàng
+create proc XoaSize(@maSize varchar(10)) as
+update Size set TrangThai = 1 where MaSize = @maSize;
+exec XoaSize 's007'
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+--------------------------------------Thêm từ đây
+-- Xoa KhachHang khỏi CSDL
+select * from KhachHang
+GO
+CREATE PROCEDURE XoaMat
+    @MaKH CHAR(10)
+AS
+BEGIN
+    DELETE FROM KhachHang
+    WHERE MaKH = @MaKH;
+END;
+GO
+EXEC XoaMat @MaKH = 'kh0006';
+GO
+
+
+-------------------------------
+-- Xoa NhanVien khỏi CSDL
+select * from NhanVien
+GO
+CREATE PROCEDURE XoaMatNV
+    @MaNV CHAR(10)
+AS
+BEGIN
+    DELETE FROM NhanVien
+    WHERE MaNV = @MaNV;
+END;
+GO
+EXEC XoaMatNV @MaNV = 'nv0007';
+GO
+
+---------------------------
+-- Xoa TaiKhoan khỏi CSDL
+select * from TaiKhoan
+GO
+
+CREATE PROCEDURE XoaMatTK
+    @MaTK CHAR(10)
+AS
+BEGIN
+    DELETE FROM TaiKhoan
+    WHERE TenDN = @MaTK;
+END;
+GO
+
+EXEC XoaMatTK @MaTK = 'TK0006';
+GO
+
+---------------------------
+-- Xoa Size khỏi CSDL
+select * from Size
+GO
+
+CREATE PROCEDURE XoaSizeMat
+    @maSize CHAR(10)
+AS
+BEGIN
+    DELETE FROM Size
+    WHERE MaSize = @maSize;
+END;
+GO
+
+EXEC XoaSizeMat @maSize = 's0004';
+GO
+
+select * from KhachHang
+
+-------------------------------------------------------------------------
+--khôi phục khahc hang
+CREATE PROC danhsachKH02 as
+select * from KhachHang where TrangThai =1;
+exec danhsachKH02
+GO
+
+--CREATE PROCEDURE SuaKhachHang02
+--    @MaKH CHAR(10),
+--    @TrangThai NVARCHAR(20)
+--AS
+--BEGIN
+--    UPDATE KhachHang
+--    SET TrangThai = @TrangThai
+--    WHERE MaKH = @MaKH;
+--END;
+--GO
+
+EXEC SuaKhachHang02 @MaKH = 'KH0001', @TrangThai = '0';
+GO
+
+
+
+
+
+----------------------------------------
+--khôi phục nhân viên
+CREATE PROC dsNhanVien02 as
+select * from NhanVien where TrangThai =1;
+exec dsNhanVien02
+GO
+
+select * from NhanVien
+go
+
+
+-------------------------------------------- thêm tơi dây
+--CREATE PROCEDURE SuaNV02
+--    @maNV CHAR(10),
+--    @TrangThai NVARCHAR(20)
+--AS
+--BEGIN
+--    UPDATE NhanVien
+--    SET TrangThai = @TrangThai
+--    WHERE MaNV = @maNV;
+--END;
+--GO
+
+EXEC SuaNV02 @maNV = 'nv0004', @TrangThai = '0';
+GO
+
+
+select * from taikhoan
+go
+
+
+
+---------------------TỪ đây-----------------
+----sinh ma ctsp
+--CREATE PROCEDURE sinhmaChiTietSP AS
+--BEGIN
+--	IF ((SELECT COUNT(*) FROM ) = 0)
+--		SELECT 'NV0000' AS TenNV;
+--	ELSE
+--		SELECT TOP 1 MaNV FROM NhanVien ORDER BY MaNV DESC;
+--END;
+--GO
+
+--SP_HELP Nhanvien
+--SET DATEFORMAT dmy; 
+--select * from HoaDon
+----
+
+--create proc TimKiemSP (@GiaTriCanTim nvarchar(20)) as
+--SELECT * FROM SanPham WHERE (MaSP = @GiaTriCanTim OR TenSP LIKE N'%' + @GiaTriCanTim + '%');
+--exec TimKiemKH N'kh01'
+
+---- thủ tục thêm sản phẩm
+--create proc ThemSanPham(@MaSP CHAR(10), @TenSP NVARCHAR(100), @SL INT, @GiaNhap float, @giaBan Float, @hinh varchar(50), @MaLoai char(10), @MaNCC char(10), @Mota nvarchar(100), @trangthai nvarchar(40)) as
+--insert into sanpham values (@MaSP,@TenSP,@SL,@GiaNhap,@giaBan,@hinh,@MaLoai,@MaNCC,@Mota,@trangthai);
+
+
+----Thủ tục thêm sản phẩm mới vào cơ sở dữ liệu:
+--CREATE PROCEDURE sp_ThemSanPham
+--    @MaSP CHAR(10),
+--    @TenSP NVARCHAR(50),
+--    @SoLuong INT,
+--    @GiaNhap FLOAT,
+--    @GiaBan FLOAT,
+--    @Hinh VARCHAR(50),
+--    @MaLoai CHAR(10),
+--    @MaNCC CHAR(10),
+--    @Mota NVARCHAR(MAX)
+--AS
+--BEGIN
+--    INSERT INTO SanPham (MaSP, TenSP, SoLuong, GiaNhap, GiaBan, Hinh, MaLoai, MaNCC, Mota, TrangThai)
+--    VALUES (@MaSP, @TenSP, @SoLuong, @GiaNhap, @GiaBan, @Hinh, @MaLoai, @MaNCC, @Mota, 'Active')
+--END
+--GO
+
+----Thủ tục tạo hoá đơn mới:
+--CREATE PROCEDURE sp_TaoHoaDon
+--    @MaHD CHAR(10),
+--    @MaKH CHAR(10),
+--    @MaNV CHAR(10),
+--    @NgayLap DATE,
+--    @TongTien FLOAT
+--AS
+--BEGIN
+--    INSERT INTO HoaDon (MaHD, MaKH, MaNV, NgayLap, TongTien, TrangThai)
+--    VALUES (@MaHD, @MaKH, @MaNV, @NgayLap, @TongTien, 'Active')
+--END
+--GO
+
+----Thủ tục cập nhật thông tin sản phẩm:
+--CREATE PROCEDURE sp_CapNhatSanPham
+--    @MaSP CHAR(10),
+--    @TenSP NVARCHAR(50),
+--    @SoLuong INT,
+--    @GiaNhap FLOAT,
+--    @GiaBan FLOAT,
+--    @Hinh VARCHAR(50),
+--    @MaLoai CHAR(10),
+--    @MaNCC CHAR(10),
+--    @Mota NVARCHAR(MAX)
+--AS
+--BEGIN
+--    UPDATE SanPham
+--    SET TenSP = @TenSP, SoLuong = @SoLuong, GiaNhap = @GiaNhap, GiaBan = @GiaBan, Hinh = @Hinh, MaLoai = @MaLoai, MaNCC = @MaNCC, Mota = @Mota
+--    WHERE MaSP = @MaSP
+--END
+--GO
+
+
+----Thủ tục lấy danh sách sản phẩm theo loại:
+--CREATE PROCEDURE sp_LaySanPhamTheoLoai
+--    @MaLoai CHAR(10)
+--AS
+--BEGIN
+--    SELECT *
+--    FROM SanPham
+--    WHERE MaLoai = @MaLoai
+--END
+--GO
+
+
+--select * from TaiKhoan
+
+select * from khachhang
